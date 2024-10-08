@@ -1,0 +1,13 @@
+name: mem-quant
+display_name: mem-quant
+schema_version: 0.1.0
+
+contributions:
+  commands:
+    - id: mem-quant.analyze_nd2
+      title: Quantify membrane eSAC
+      python_name: mem_quant.main:create_memQuant_widget
+
+  widgets:
+    - command: mem-quant.analyze_nd2
+      display_name: Quantify membrane eSAC
