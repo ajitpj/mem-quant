@@ -70,7 +70,7 @@ def create_roi_selection_widgets() -> dict[str, QtWidgets.QWidget]:
     # progress_bar.setEnabled(False)
 
     widgets = {'ref_channel_selector' : ("ref. ch.", ref_channel_selector)}
-    widgets['select_cell_button'] = ("threshold", select_cell_button)
+    widgets['select_cell_button'] = ("", select_cell_button)
     widgets['foreground_thresh'] = ("threshold", foreground_thresh)
     widgets['accept_segmentation_button'] = ("", accept_segmentation_button)
     # widgets['progress_bar'] = ("", progress_bar)

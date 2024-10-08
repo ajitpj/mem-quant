@@ -137,7 +137,6 @@ def loadND2(mQWidget: ui.mQWidget):
         mQWidget.foreground_thresh.setEnabled(True)
         mQWidget.save_data_button.setEnabled(True)
         mQWidget.ref_channel_selector.setEnabled(True)
-        mQWidget.progress_bar.setEnabled(True)
 
         mQWidget.current_cell =  {"file_name"   :im_name,
                                   "ref_channel" :"Cy5"
