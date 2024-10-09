@@ -95,6 +95,16 @@ def create_saving_widgets() -> dict[str, QtWidgets.QWidget]:
 
     return widgets
 
+def create_model_selection_widgets() -> dict[str, QtWidgets.QWidget]:
+    '''
+    '''
+    model_selector_combobox = QtWidgets.QComboBox()
+    model_selector_combobox.setToolTip = "Select ilastik model"
+    widgets = {"model_selector" : model_selector_combobox}
+
+    return widgets
+
+
 # def create_channel_lineEdits_widgets() -> dict[str, QtWidgets.QWidget]:
 #     '''Creates TextEdit boxes for the four channels '''
 #     ch1_LineEdit = QtWidgets.QLineEdit('phs')

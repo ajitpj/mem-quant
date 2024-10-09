@@ -91,8 +91,14 @@ class mQWidget(QtWidgets.QScrollArea):
         self._tabs.addTab(tab, "\N{GEAR}" + " Save")
 
     def _add_configuration_widgets(self):
+        
+        model_selector_widgets = subwidgets.create_model_selection_widgets()
         widget_holder = QtWidgets.QGroupBox('Configuration parameters')
         layout = QtWidgets.QFormLayout()
+        for value in model_selector_widgets.values():
+            layout.addRow(value)
+        widget_holder.setLayout(layout)
+
         tab = QtWidgets.QWidget()
         tab.setLayout(layout)
         self._tabs.addTab(tab, "\N{GEAR}" + " Configure")
