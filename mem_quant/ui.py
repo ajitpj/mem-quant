@@ -2,7 +2,7 @@ from __future__ import annotations
 from napari.viewer import Viewer
 from qtpy import QtWidgets
 import mem_quant.subwidgets as subwidgets # type: ignore
-# from memQuant import IXN_funcs
+
 
 class mQWidget(QtWidgets.QScrollArea):
     "memQuantWidget GUI Class"
@@ -92,10 +92,10 @@ class mQWidget(QtWidgets.QScrollArea):
 
     def _add_configuration_widgets(self):
         
-        model_selector_widgets = subwidgets.create_model_selection_widgets()
+        save_pickle_checkbox_widgets = subwidgets.create_save_pickle_checkbox_widgets()
         widget_holder = QtWidgets.QGroupBox('Configuration parameters')
         layout = QtWidgets.QFormLayout()
-        for value in model_selector_widgets.values():
+        for value in save_pickle_checkbox_widgets.values():
             layout.addRow(value)
         widget_holder.setLayout(layout)
 

@@ -18,7 +18,7 @@ def create_memQuant_widget() -> ui.mQwidget:
     mQWidget.path_selector_button.clicked.connect(lambda: memQuant.select_dir(mQWidget))
     mQWidget.file_selector.currentIndexChanged.connect(lambda: memQuant.loadND2(mQWidget))
     mQWidget.select_cell_button.clicked.connect(lambda: memQuant.select_cell_button_callback(mQWidget))
-    mQWidget.model_selector_button.clicked.connect(lambda: memQuant.model_selector_button_callback(mQWidget))
+    mQWidget.ref_channel_selector.currentIndexChanged.connect(lambda: memQuant.ref_channel_selector_callback(mQWidget))
     mQWidget.foreground_thresh.valueChanged.connect(lambda: memQuant.thresh_slider_callback(mQWidget))
     mQWidget.accept_segmentation_button.clicked.connect(lambda: memQuant.accept_segmentation_button_callback(mQWidget))
     mQWidget.save_data_button.clicked.connect(lambda: memQuant.save_data_button_callback(mQWidget))

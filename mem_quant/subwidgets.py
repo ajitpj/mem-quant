@@ -19,15 +19,15 @@ def create_dir_selector_widget() -> dict[str,  QtWidgets.QWidget]:
 
     file_selector = QtWidgets.QComboBox()
 
-    model_selector_button = QtWidgets.QPushButton()
-    model_selector_button.setText('ilastik model')
-    model_selector_button.setToolTip(
-        'Select PixelClassification model'
-    )
+    # model_selector_button = QtWidgets.QPushButton()
+    # model_selector_button.setText('ilastik model')
+    # model_selector_button.setToolTip(
+    #     'Select PixelClassification model'
+    # )
 
     widgets = {'path_selector_button' :  ("", path_selector_button)}
     widgets["file_selector"] = ("", file_selector)
-    widgets["model_selector_button"] = ("", model_selector_button)
+    # widgets["model_selector_button"] = ("", model_selector_button)
 
     return widgets
 
@@ -101,6 +101,12 @@ def create_model_selection_widgets() -> dict[str, QtWidgets.QWidget]:
     model_selector_combobox = QtWidgets.QComboBox()
     model_selector_combobox.setToolTip = "Select ilastik model"
     widgets = {"model_selector" : model_selector_combobox}
+
+    return widgets
+
+def create_save_pickle_checkbox_widgets() -> dict[str, QtWidgets.QWidget]:
+    save_pickle_checkbox = QtWidgets.QCheckBox(text="Save pickle?")
+    widgets = {"save_pickle_checkbox" : save_pickle_checkbox}
 
     return widgets
 

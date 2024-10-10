@@ -3,10 +3,11 @@ import datetime, pickle
 import nd2
 from pathlib import Path
 import numpy as np
+import pandas as pd
 from qtpy import QtWidgets
 import napari.utils.notifications as notifications
 from typing import Optional, List, Dict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from xarray import DataArray
 from ilastik.experimental.api import from_project_file
 from mem_quant import ui # type: ignore
@@ -37,6 +38,25 @@ class cell_data:
     threshold: float=0.5    # Default threshold for foregroundpixels
     z_index:   int=10       # User-selected plan
 
+@dataclass
+class summary_data:
+    summary: dict = field(default_factory= lambda: {'Filename'   : str,
+                                                    'Model_used' : str,
+                                                    'Ref_channel': str,
+                                                    'Threshold'  : float,
+                                                    "ROI"        : list,
+                                                    'Z_plane'    : int,
+                                                    'GFP_signal' : float,
+                                                    'GFP_bkg'    : float,
+                                                    'Cy5_signal' : float,
+                                                    'Cy5_bkg'    : float,
+                                                    'GFP_list'   : list,
+                                                    'Cy5_list'   : list,
+                                                    'GFP_bkg_list': list,
+                                                    'Cy5_bkg_list': list,
+                                                   }
+                        ) 
+
 def select_dir(mQwidget: ui.mQWidget):
     '''
     Returns the user selected Path,
@@ -55,35 +75,48 @@ def select_dir(mQwidget: ui.mQWidget):
         # Initialize experiment metadata
         # colormaps for the three channels
         channel_cmap = {"Brightfield": "gray",
-                       "Cy5"         : "viridis",
+                       "Cy5"         : "GrBu_d",
                        "GFP"         : "green"}
-        
+
+        # Initialize the dictionary holding available models
+        # currently - trained for GFP and Cy5 separately.
+
+        models_dict = {"GFP" : Path('./mem_quant/Models/membrane_GFP_v1.ilp'),
+                       "Cy5" : Path('./mem_quant/Models/membrane_Cy5_v1.ilp')
+                      }
+
+        # Initialize experiment data
         mQwidget.exptInfo = {"data_dir"      : dir_path,
-                             "model_path"    : Path('./mem_quant/Models/membrane_model.ilp'),
+                             "models_dict"   : models_dict,
                              "name"          : dir_path.stem,
                              "analysis_date" : f'{datetime.date.today()}',
                              "metadata"      : {},
                              "channel_names" :{},
-                             "colormap_dict" : channel_cmap
+                             "colormap_dict" : channel_cmap,
                             }
         
         # Dictionary for storing cell_data structures
         # {key =current_cell_index, value = cell_data}
         mQwidget.current_cell_index = 0
         mQwidget.all_data = {}
+        # Summary dataframe
+
+        mQwidget.summary_df = pd.DataFrame([summary_data().summary])
+
 
         # populate the file_selector_combobox
         for name in sorted(nd2_list):
             mQwidget.file_selector.addItem(name.name)
 
 
+
 def loadND2(mQWidget: ui.mQWidget):
     '''
-    Function opens an ND2 file and returns it as a numpy array
+    Function opens an ND2 file
     '''
     im_name = mQWidget.file_selector.currentText()
     im_path = mQWidget.exptInfo["data_dir"] / im_name
-    
+
     try:
         im_arr = nd2.imread(im_path)
     except:
@@ -100,61 +133,58 @@ def loadND2(mQWidget: ui.mQWidget):
             channel_names.append(metadata.channels[i].channel.name)
 
         mQWidget.exptInfo["channel_names"] = channel_names
+        
         # Assemble colormap list
         colormaps = []
         for name in channel_names:
             colormaps.append(mQWidget.exptInfo["colormap_dict"][name])
-            
-        if mQWidget.ref_channel_selector.count() == 0:
-            for name in channel_names:
-                mQWidget.ref_channel_selector.addItem(name)
         
         # Display setup
-        # remove previous layers
-        _remove_napari_layers(mQWidget)
-        
+         # remove previous layers
+        # _remove_napari_layers(mQWidget)
+        mQWidget.viewer.layers.clear()
+
         mQWidget.viewer.add_image(im_arr, channel_axis=1,
-                                name= channel_names,
-                                colormap=colormaps,
+                                  name= channel_names,
+                                  colormap=colormaps,
                                  )
         
         
-        mQWidget.viewer.layers['Brightfield'].opacity = 0.0
+        mQWidget.viewer.layers['Brightfield'].visible = False
+        mQWidget.viewer.layers['GFP'].visible = False
 
         # Add a layer to store the user-defined ROI
-        if "cell_ROI" in mQWidget.viewer.layers:
-            mQWidget.viewer.layers.remove(mQWidget.viewer.layers["cell_ROI"])
-        
-        roi_layer = mQWidget.viewer.add_shapes(name="cell_ROI")
+        mQWidget.viewer.add_shapes(name="cell_ROI")
 
         # Select the rectangle selection mode
         mQWidget.viewer.layers["cell_ROI"].mode = 'add_rectangle'
         notifications.show_info("Select an ROI and hit the process button!")
 
         #Activate GUI controls
+        mQWidget.ref_channel_selector.setEnabled(True)
+        if mQWidget.ref_channel_selector.count() == 0:
+            for name in channel_names:
+                if name != "Brightfield":
+                    mQWidget.ref_channel_selector.addItem(name)
+        
         mQWidget.select_cell_button.setEnabled(True)
         mQWidget.accept_segmentation_button.setEnabled(True)
         mQWidget.foreground_thresh.setEnabled(True)
+        # mQWidget.foreground_thresh.setValue(50)
         mQWidget.save_data_button.setEnabled(True)
-        mQWidget.ref_channel_selector.setEnabled(True)
+        
 
-        mQWidget.current_cell =  {"file_name"   :im_name,
-                                  "ref_channel" :"Cy5"
+        mQWidget.current_cell =  {"file_name"      : im_name,
+                                  "ref_channel"    : mQWidget.ref_channel_selector.currentText(),
+                                  "roi_coords"     : None,
+                                  "raw_mask"       : None,
+                                  "processed_mask" : None,
+                                  "background_mask": None,
+                                  "threshold"      : None,
+                                  "z_index"        : None
                                  }
         print(f"Currently viewing: {im_path.name}")
                                             
-
-    return
-
-def model_selector_button_callback(mQWidget: ui.mQWidget):
-    '''
-    '''
-    # options = QtWidgets.QFileDialog.Options()
-    fileName, _ = QtWidgets.QFileDialog.getOpenFileName()
-    
-    if fileName:
-        print(fileName)
-        mQWidget.exptInfo["model_path"] = Path(fileName)
 
     return
 
@@ -172,9 +202,13 @@ def select_cell_button_callback(mQWidget: ui.mQWidget):
         xstart, xend, ystart, yend = _roi_to_range(current_roi)
         
         # Obtain the user-selected ref. channel for segmentation
+        # and select the corresponding ilastik model
         ref_channel = mQWidget.ref_channel_selector.currentText()
+        ilastik_model = mQWidget.exptInfo["models_dict"][ref_channel]
+
+        # Obtain ROI and predict
         roi = mQWidget.viewer.layers[ref_channel].data[:, xstart:xend, ystart:yend]
-        roi_pred = _2Dpredictor(roi, mQWidget.exptInfo["model_path"])
+        roi_pred = _3Dpredictor(roi, ilastik_model)
         
         #post-process the predictions
         roi_proc = _postprocess(roi_pred)
@@ -192,22 +226,24 @@ def select_cell_button_callback(mQWidget: ui.mQWidget):
 
         # Stow data
         mQWidget.current_cell = {"file_name"      : mQWidget.file_selector.currentText(),
+                                 "model_used"     : ilastik_model,
                                  "ref_channel"    : ref_channel,
                                  "roi_coords"     : roi_coords,
-                                 "raw_mask"     : raw_mask,
+                                 "raw_mask"       : raw_mask,
                                  "processed_mask" : processed_mask,
                                  "background_mask": background_mask,
-                                 "threshold"      : 0.5,
+                                 "threshold"      : mQWidget.foreground_thresh.value()/100,
                                  "z_index"        : int(mQWidget.viewer.cursor.position[0])
                                 }
         
         # 
 
         mQWidget.viewer.layers["cell_ROI"].opacity = 0.0
+        
         mQWidget.viewer.add_labels(data=processed_mask.astype(bool)*39+
                                         background_mask.astype(bool)*222, 
                                    name = "predicted mask",
-                                   opacity = 0.25,
+                                   opacity = 0.25
                                    )
 
     return
@@ -217,28 +253,39 @@ def thresh_slider_callback(mQWidget: ui.mQWidget):
     Takes the threshold value and re-performs post-processing
     displays the updated image.
     '''
-    threshold = mQWidget.foreground_thresh.value()/100
-    print(threshold)
-    
-    raw_mask = mQWidget.current_cell["raw_mask"]
-    # mQWidget.viewer.add_labels(data=raw_mask, name="raw mask")
-    processed_mask = _postprocess(raw_mask, threshold)
-    background_mask = _defineBackground(processed_mask)
+    if mQWidget.viewer.layers["cell_ROI"].data:
+        threshold = mQWidget.foreground_thresh.value()/100
+        raw_mask = mQWidget.current_cell["raw_mask"]
+        # mQWidget.viewer.add_labels(data=raw_mask, name="raw mask")
+        processed_mask = _postprocess(raw_mask, threshold)
+        background_mask = _defineBackground(processed_mask)
 
-    if "predicted mask" in mQWidget.viewer.layers:
-        mQWidget.viewer.layers.remove("predicted mask")
+        if "predicted mask" in mQWidget.viewer.layers:
+            mQWidget.viewer.layers.remove("predicted mask")
 
-    mQWidget.viewer.add_labels(data=processed_mask.astype(bool)*39+
-                                        background_mask.astype(bool)*222, 
-                                   name = "predicted mask",
-                                   opacity = 0.25,
-                                   )
-    mQWidget.current_cell["processed_mask"] = processed_mask
-    mQWidget.current_cell["background_mask"]= background_mask
-    mQWidget.current_cell["threshold"] = threshold
+        mQWidget.viewer.add_labels(data=processed_mask.astype(bool)*39+
+                                            background_mask.astype(bool)*222, 
+                                    name = "predicted mask",
+                                    opacity = 0.25,
+                                    )
+        mQWidget.current_cell["processed_mask"] = processed_mask
+        mQWidget.current_cell["background_mask"]= background_mask
+        mQWidget.current_cell["threshold"] = threshold
 
     return
 
+def ref_channel_selector_callback(mQWidget):
+    '''
+    '''
+    if mQWidget.ref_channel_selector.currentText() == "Cy5":
+        mQWidget.foreground_thresh.setValue(75)
+        mQWidget.viewer.layers["Cy5"].visible = True
+        mQWidget.viewer.layers["GFP"].visible = False
+    elif mQWidget.ref_channel_selector.currentText() == "GFP":
+        mQWidget.foreground_thresh.setValue(50)
+        mQWidget.viewer.layers["Cy5"].visible = False
+        mQWidget.viewer.layers["GFP"].visible = True
+    
 
 def accept_segmentation_button_callback(mQWidget):
     '''
@@ -251,17 +298,31 @@ def accept_segmentation_button_callback(mQWidget):
     processed_mask = mQWidget.current_cell["processed_mask"][z_plane,:,:]
     raw_mask       = mQWidget.current_cell["raw_mask"][z_plane,:,:]
     background_mask= mQWidget.current_cell["background_mask"][z_plane,:,:]
+    #                              }
+    # This summary will be appended to the dataframe for export
+    current_cell = summary_data()
+    current_cell.summary["Filename"]    = mQWidget.current_cell["file_name"]
+    current_cell.summary["Model_used"]  = mQWidget.current_cell["model_used"]
+    current_cell.summary["Ref_channel"] = mQWidget.current_cell["ref_channel"]
+    current_cell.summary["Threshold"]   = mQWidget.current_cell["threshold"]
+    current_cell.summary["ROI"]         = mQWidget.current_cell["roi_coords"]
+    current_cell.summary["Z_plane"]     = mQWidget.current_cell["z_index"]
 
     for name in channel_names:
-        im = mQWidget.viewer.layers[name].data[z_plane,:,:]
-        signal_pixels     = _export_pixels(im, raw_mask, processed_mask)
-        background_pixels = _export_pixels(im, 1 - raw_mask, background_mask)
+        if name != "Brightfield":
+            im = mQWidget.viewer.layers[name].data[z_plane,:,:]
+            signal_pixels     = _export_pixels(im, raw_mask, processed_mask)
+            background_pixels = _export_pixels(im, 1 - raw_mask, background_mask)
+            
+            current_cell.summary[name + "_signal"] = np.mean(signal_pixels)
+            current_cell.summary[name + "_bkg"]    = np.median(background_pixels)
+            current_cell.summary[name+"_list"]     = signal_pixels
+            current_cell.summary[name+"_bkg_list"] = background_pixels
 
-        mQWidget.current_cell[name+"_sig_pixels"] = signal_pixels
-        mQWidget.current_cell[name+"_bkg_pixels"] = background_pixels
-        mQWidget.current_cell[name+"_mean_sig"] = np.mean(signal_pixels)
-        mQWidget.current_cell[name+"_mean_bkg"] = np.mean(background_pixels)
-    
+    current_cell_summary = pd.DataFrame([current_cell.summary])
+    # Append to the overall summary
+    mQWidget.summary_df = pd.concat([mQWidget.summary_df, current_cell_summary])
+
     mQWidget.all_data[mQWidget.current_cell_index] = mQWidget.current_cell
     notifications.show_info(f"Data for cell# {mQWidget.current_cell_index} finalized")
     print(f"Data for cell# {mQWidget.current_cell_index} finalized")
@@ -274,50 +335,42 @@ def save_data_button_callback(mQWidget: ui.mQWidget):
     Saves a summary and analysis file in the same directory as the
     nd2 files.
     '''
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M")
     save_dir = mQWidget.exptInfo["data_dir"]
-    save_file = mQWidget.exptInfo["name"] + '_' + mQWidget.exptInfo["analysis_date"] +  '.pickle'
+    save_file = mQWidget.exptInfo["name"] + '_' + timestamp +  '.xlsx'
     print(save_file)
     save_path = save_dir / save_file
     print(save_path)
-
-    with open(save_path, 'wb') as f:
-        pickle.dump(mQWidget.all_data, f,
-                    protocol=pickle.HIGHEST_PROTOCOL)
-
-    
+    mQWidget.summary_df.to_excel(save_path)
     notifications.show_info(f"Python datafile {save_path} saved.")
     print(f"Python datafile {save_path} saved.")
+
+    if mQWidget.save_pickle_checkbox.isChecked():
+        with open(save_path, 'wb') as f:
+            save_path = save_dir / save_file[:-4]+'pickle'
+            pickle.dump(mQWidget.all_data, f,
+                        protocol=pickle.HIGHEST_PROTOCOL)
+            notifications.show_info(f"Python datafile {save_path} saved.")
+            print(f"Python datafile {save_path} saved.")
     
     return
 
-def _export_pixels(im: np.array,raw_mask: np.array, processed_mask:np.array):
+def _export_pixels(im: np.array,raw_mask: np.array, bool_mask:np.array):
     '''
     Calculate the signal and background intensities from the given
     image array and mask pair.
     '''
     try:
         im.shape == raw_mask.shape
-        im.shape == processed_mask.shape
+        im.shape == bool_mask.shape
     except:
         raise ValueError("Arrays not of the same size")
     else:
-        weighted_mask = raw_mask * processed_mask
-        intensity_map = im * weighted_mask
+        weighted_mask = raw_mask * bool_mask
+        # intensity_map = im * weighted_mask
+        intensity_map = im * bool_mask
 
     return intensity_map[intensity_map > 0]
-
-def _export_to_excel(all_data: dict):
-    '''
-    Function unravles the mQWidget.all_data dictionary and 
-    saves summary statistics into an Excel file. The rest of the data
-    are dumped as a python pickle. Names of the saved files are inferred
-    from the metadata.
-    Inputs:
-    all_data: dict with indices as keys and the cell_data as values
-    '''
-
-
-    return
 
 
 def _remove_napari_layers(mQWidget: ui.mQWidget):
@@ -326,6 +379,7 @@ def _remove_napari_layers(mQWidget: ui.mQWidget):
     if num_layers>0:
         for i in np.arange(num_layers):
             mQWidget.viewer.layers.remove(mQWidget.viewer.layers[-1])
+            print(i)
     return
 
 def _roi_to_range(roi: np.array):
@@ -361,6 +415,21 @@ def _2Dpredictor(im_arr: np.array, model_path: Path):
                                                      dims=["y","x"]))[:,:,0]
     return foreground
 
+def _3Dpredictor(im_arr: np.array, model_path: Path):
+    '''
+    Inputs:
+    img_arr: nd2 files have zcyx as dims
+    model_path: Path object for the model file 
+    '''
+    ndims = im_arr.shape
+
+    ilastik_model = from_project_file(model_path)
+    foreground = ilastik_model.predict(DataArray(im_arr, 
+                                                 dims=["z","y","x"]))[:,:,:,0]
+
+
+    return foreground
+
 def _postprocess(foreground: np.array, threhsold=0.5) -> np.array:
     '''
     Function removes all non-membrane pixels from the foreground 
@@ -373,10 +442,11 @@ def _postprocess(foreground: np.array, threhsold=0.5) -> np.array:
     '''
     # 
     min_size = 500
-    ball_size = 1
+    ball_size = 3
     #
     foreground = foreground > threhsold
     foreground = closing(foreground, ball(ball_size))
+
     for i in np.arange(foreground.shape[0]):
         foreground[i,:,:] = clear_border(foreground[i,:,:])
         foreground[i,:,:] = remove_small_objects(foreground[i,:,:], 
@@ -384,7 +454,7 @@ def _postprocess(foreground: np.array, threhsold=0.5) -> np.array:
 
     return foreground
 
-def _defineBackground(foreground: np.array) -> np.array:
+def _defineBackground(processed_mask: np.array) -> np.array:
     '''
     Function takes in the foreground array and define the background
     as concentric pixel rings on either side. To be used for membrane-
@@ -397,25 +467,25 @@ def _defineBackground(foreground: np.array) -> np.array:
     background: boolean array definining background pixels
     '''
     try:
-        foreground.dtype == bool
+        processed_mask.dtype == bool
     except:
         notifications.show_error(f"the passed array must be boolean")
         raise ValueError("Input must be a boolean array.")
     else:
         # skeletonize & grow
         footprint = disk(7)
-        if len(foreground.shape) == 2:
-            skeleton = skeletonize(foreground)
-            skeleton = dilation(skeleton, footprint=footprint)
-            skeleton = skeleton - foreground
+        if len(processed_mask.shape) == 2:
+            background = skeletonize(processed_mask)
+            background = dilation(background, footprint=footprint)
+            background = background - processed_mask
         else:
-            skeleton = np.zeros_like(foreground)
-            for i in np.arange(foreground.shape[0]):
-                skeleton[i,:,:] = skeletonize(foreground[i,:,:])
-                skeleton[i,:,:] = dilation(skeleton[i,:,:], footprint=footprint)
-                skeleton[i,:,:] = np.logical_xor(skeleton[i,:,:], foreground[i,:,:])
-        
-    return skeleton
+            background = np.zeros_like(processed_mask)
+            for i in np.arange(processed_mask.shape[0]):
+                background[i,:,:] = skeletonize(processed_mask[i,:,:])
+                background[i,:,:] = dilation(background[i,:,:], footprint=footprint)
+                background[i,:,:] = np.logical_xor(background[i,:,:], processed_mask[i,:,:])
+
+    return background
 
 def _createMask(roi: np.array, roi_coords: list, mask_shape: tuple) -> np.array:
     '''
