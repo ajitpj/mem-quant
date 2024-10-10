@@ -75,7 +75,7 @@ def select_dir(mQwidget: ui.mQWidget):
         # Initialize experiment metadata
         # colormaps for the three channels
         channel_cmap = {"Brightfield": "gray",
-                       "Cy5"         : "GrBu_d",
+                       "Cy5"         : "magenta",
                        "GFP"         : "green"}
 
         # Initialize the dictionary holding available models
@@ -311,8 +311,8 @@ def accept_segmentation_button_callback(mQWidget):
     for name in channel_names:
         if name != "Brightfield":
             im = mQWidget.viewer.layers[name].data[z_plane,:,:]
-            signal_pixels     = _export_pixels(im, raw_mask, processed_mask)
-            background_pixels = _export_pixels(im, 1 - raw_mask, background_mask)
+            signal_pixels     = _export_pixels(im, processed_mask)
+            background_pixels = _export_pixels(im, background_mask)
             
             current_cell.summary[name + "_signal"] = np.mean(signal_pixels)
             current_cell.summary[name + "_bkg"]    = np.median(background_pixels)
@@ -346,8 +346,9 @@ def save_data_button_callback(mQWidget: ui.mQWidget):
     print(f"Python datafile {save_path} saved.")
 
     if mQWidget.save_pickle_checkbox.isChecked():
+        save_file = mQWidget.exptInfo["name"] + '_' + timestamp + '.pickle'
+        save_path = save_dir / save_file
         with open(save_path, 'wb') as f:
-            save_path = save_dir / save_file[:-4]+'pickle'
             pickle.dump(mQWidget.all_data, f,
                         protocol=pickle.HIGHEST_PROTOCOL)
             notifications.show_info(f"Python datafile {save_path} saved.")
@@ -355,19 +356,17 @@ def save_data_button_callback(mQWidget: ui.mQWidget):
     
     return
 
-def _export_pixels(im: np.array,raw_mask: np.array, bool_mask:np.array):
+def _export_pixels(im: np.array, bool_mask:np.array):
     '''
     Calculate the signal and background intensities from the given
     image array and mask pair.
     '''
     try:
-        im.shape == raw_mask.shape
         im.shape == bool_mask.shape
+        bool_mask.dtype == bool
     except:
         raise ValueError("Arrays not of the same size")
     else:
-        weighted_mask = raw_mask * bool_mask
-        # intensity_map = im * weighted_mask
         intensity_map = im * bool_mask
 
     return intensity_map[intensity_map > 0]

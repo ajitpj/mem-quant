@@ -93,6 +93,8 @@ class mQWidget(QtWidgets.QScrollArea):
     def _add_configuration_widgets(self):
         
         save_pickle_checkbox_widgets = subwidgets.create_save_pickle_checkbox_widgets()
+        self._widgets.update(save_pickle_checkbox_widgets
+                             )
         widget_holder = QtWidgets.QGroupBox('Configuration parameters')
         layout = QtWidgets.QFormLayout()
         for value in save_pickle_checkbox_widgets.values():
