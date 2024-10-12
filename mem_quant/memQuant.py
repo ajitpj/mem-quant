@@ -335,9 +335,9 @@ def save_data_button_callback(mQWidget: ui.mQWidget):
     Saves a summary and analysis file in the same directory as the
     nd2 files.
     '''
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M")
+    timestamp = datetime.datetime.now().strftime("_%Y-%m-%d-%H.%M.%S")
     save_dir = mQWidget.exptInfo["data_dir"]
-    save_file = mQWidget.exptInfo["name"] + '_' + timestamp +  '.xlsx'
+    save_file = mQWidget.exptInfo["name"] + timestamp +  '.xlsx'
     print(save_file)
     save_path = save_dir / save_file
     print(save_path)
@@ -355,6 +355,20 @@ def save_data_button_callback(mQWidget: ui.mQWidget):
             print(f"Python datafile {save_path} saved.")
     
     return
+
+
+# def _ND2metadata(nd2_obj):
+#     '''
+#     Obtain key metadata from the ND2file.metadata object
+#     '''
+#     'ImageTextInfoLV'
+
+#     unstructered = nd2_obj.unstructured_metadata()['ImageTextInfoLV']
+    #   unstructured['SLxImageTextInfo']['TextInfoItem_5'].split('\n')
+
+#     return metadata
+
+        
 
 def _export_pixels(im: np.array, bool_mask:np.array):
     '''
@@ -513,3 +527,6 @@ def _createMask(roi: np.array, roi_coords: list, mask_shape: tuple) -> np.array:
 
 
     return mask
+
+
+   
