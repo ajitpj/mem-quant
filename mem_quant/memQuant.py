@@ -54,6 +54,8 @@ class summary_data:
                                                     'Cy5_list'   : list,
                                                     'GFP_bkg_list': list,
                                                     'Cy5_bkg_list': list,
+                                                    "npix_signal"    : int,
+                                                    "npix_background": int
                                                    }
                         ) 
 
@@ -72,8 +74,6 @@ def select_dir(mQwidget: ui.mQWidget):
         notifications.show_error(f'No Nd2 files in {dir_path}!')
         return
     else:
-        # unstructered = nd2_obj.unstructured_metadata()['ImageTextInfoLV']
-        # unstructured['SLxImageTextInfo']['TextInfoItem_5'].split('\n')
 
         # Initialize experiment metadata
         # colormaps for the three channels
@@ -166,7 +166,7 @@ def loadND2(mQWidget: ui.mQWidget):
         notifications.show_error(f"Could not read {im_path} file")
     else:
         # Display setup
-         # remove previous layers
+        # remove previous layers
         mQWidget.viewer.layers.clear()
 
         mQWidget.viewer.add_image(im_arr, channel_axis=1,
@@ -341,6 +341,8 @@ def accept_segmentation_button_callback(mQWidget):
             current_cell.summary[name + "_bkg"]    = np.median(background_pixels)
             current_cell.summary[name+"_list"]     = signal_pixels
             current_cell.summary[name+"_bkg_list"] = background_pixels
+            current_cell.summary["npix_signal"]    = len(signal_pixels)
+            current_cell.summary["npix_background"]= len(background_pixels)
 
     current_cell_summary = pd.DataFrame([current_cell.summary])
     # Append to the overall summary
@@ -380,18 +382,6 @@ def save_data_button_callback(mQWidget: ui.mQWidget):
     return
 
 
-# def _ND2metadata(nd2_obj):
-#     '''
-#     Obtain key metadata from the ND2file.metadata object
-#     '''
-#     'ImageTextInfoLV'
-
-
-
-#     return metadata
-
-        
-
 def _export_pixels(im: np.array, bool_mask:np.array):
     '''
     Calculate the signal and background intensities from the given
@@ -407,15 +397,6 @@ def _export_pixels(im: np.array, bool_mask:np.array):
 
     return intensity_map[intensity_map > 0]
 
-
-def _remove_napari_layers(mQWidget: ui.mQWidget):
-    # Remove previous layers
-    num_layers = len(mQWidget.viewer.layers)
-    if num_layers>0:
-        for i in np.arange(num_layers):
-            mQWidget.viewer.layers.remove(mQWidget.viewer.layers[-1])
-            print(i)
-    return
 
 def _roi_to_range(roi: np.array):
         roi = roi.astype(np.int16)
