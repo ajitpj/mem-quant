@@ -72,11 +72,14 @@ def select_dir(mQwidget: ui.mQWidget):
         notifications.show_error(f'No Nd2 files in {dir_path}!')
         return
     else:
+        # unstructered = nd2_obj.unstructured_metadata()['ImageTextInfoLV']
+        # unstructured['SLxImageTextInfo']['TextInfoItem_5'].split('\n')
+
         # Initialize experiment metadata
         # colormaps for the three channels
         channel_cmap = {"Brightfield": "gray",
-                       "Cy5"         : "magenta",
-                       "GFP"         : "green"}
+                        "Cy5"         : "magenta",
+                        "GFP"         : "green"}
 
         # Initialize the dictionary holding available models
         # currently - trained for GFP and Cy5 separately.
@@ -90,11 +93,15 @@ def select_dir(mQwidget: ui.mQWidget):
                              "models_dict"   : models_dict,
                              "name"          : dir_path.stem,
                              "analysis_date" : f'{datetime.date.today()}',
-                             "metadata"      : {},
-                             "channel_names" :{},
                              "colormap_dict" : channel_cmap,
+                             "metadata"      : {},
+                             "unstrcut_metadata" : {},
+                             "channel_names" :[],
+                             "ordered_cmpas" : [],
                             }
         
+        _retrievemetadata(mQwidget, nd2_list[0])
+
         # Dictionary for storing cell_data structures
         # {key =current_cell_index, value = cell_data}
         mQwidget.current_cell_index = 0
@@ -107,8 +114,44 @@ def select_dir(mQwidget: ui.mQWidget):
         # populate the file_selector_combobox
         for name in sorted(nd2_list):
             mQwidget.file_selector.addItem(name.name)
+        
 
+def _retrievemetadata(mQWidget: ui.mQWidget, im_path: Path):
+    '''
+    '''
+    with nd2.ND2File(im_path) as nd2_file:
+        unstruct_metadata = nd2_file.unstructured_metadata()['ImageTextInfoLV']
+    
+    with nd2.ND2File(im_path) as nd2_file:    
+        metadata = nd2_file.metadata
+   
+    mQWidget.metadata = metadata
+    mQWidget.unstruct_metadata = unstruct_metadata
 
+    # Retrieve channel names
+    channel_names = []
+    for i in np.arange(metadata.contents.channelCount):
+        channel_names.append(metadata.channels[i].channel.name)
+
+    mQWidget.exptInfo["channel_names"] = channel_names
+    
+    # Assemble the ordered colormap list - passed to the viewer.add_image
+    # function for proper display
+    ordered_cmaps = []
+    for name in channel_names:
+        ordered_cmaps.append(mQWidget.exptInfo["colormap_dict"][name])
+
+    mQWidget.exptInfo["ordered_cmaps"] = ordered_cmaps
+    # Write a text file with the channel exposure times and intensities
+    data_dir = mQWidget.exptInfo["data_dir"]
+    metadata_name = data_dir.as_posix().split(data_dir.root)[-1] + '_metadata.txt'
+    metadata_path =  data_dir / metadata_name 
+    print(metadata_path, metadata_name)
+
+    with open(metadata_path, 'w') as txtfile:
+        txtfile.write(unstruct_metadata['SLxImageTextInfo']['TextInfoItem_5'])
+
+    return
 
 def loadND2(mQWidget: ui.mQWidget):
     '''
@@ -122,33 +165,14 @@ def loadND2(mQWidget: ui.mQWidget):
     except:
         notifications.show_error(f"Could not read {im_path} file")
     else:
-        # Obtain metadata
-        with nd2.ND2File(im_path) as nd2_file:
-            metadata = nd2_file.metadata
-        
-        mQWidget.exptInfo["metadata"][im_path.name] = metadata
-        # Retrieve channel names
-        channel_names = []
-        for i in np.arange(metadata.contents.channelCount):
-            channel_names.append(metadata.channels[i].channel.name)
-
-        mQWidget.exptInfo["channel_names"] = channel_names
-        
-        # Assemble colormap list
-        colormaps = []
-        for name in channel_names:
-            colormaps.append(mQWidget.exptInfo["colormap_dict"][name])
-        
         # Display setup
          # remove previous layers
-        # _remove_napari_layers(mQWidget)
         mQWidget.viewer.layers.clear()
 
         mQWidget.viewer.add_image(im_arr, channel_axis=1,
-                                  name= channel_names,
-                                  colormap=colormaps,
+                                  name = mQWidget.exptInfo["channel_names"],
+                                  colormap=mQWidget.exptInfo["ordered_cmaps"],
                                  )
-        
         
         mQWidget.viewer.layers['Brightfield'].visible = False
         mQWidget.viewer.layers['GFP'].visible = False
@@ -163,14 +187,13 @@ def loadND2(mQWidget: ui.mQWidget):
         #Activate GUI controls
         mQWidget.ref_channel_selector.setEnabled(True)
         if mQWidget.ref_channel_selector.count() == 0:
-            for name in channel_names:
+            for name in mQWidget.exptInfo["channel_names"]:
                 if name != "Brightfield":
                     mQWidget.ref_channel_selector.addItem(name)
         
         mQWidget.select_cell_button.setEnabled(True)
         mQWidget.accept_segmentation_button.setEnabled(True)
         mQWidget.foreground_thresh.setEnabled(True)
-        # mQWidget.foreground_thresh.setValue(50)
         mQWidget.save_data_button.setEnabled(True)
         
 
@@ -183,8 +206,8 @@ def loadND2(mQWidget: ui.mQWidget):
                                   "threshold"      : None,
                                   "z_index"        : None
                                  }
+
         print(f"Currently viewing: {im_path.name}")
-                                            
 
     return
 
@@ -363,8 +386,7 @@ def save_data_button_callback(mQWidget: ui.mQWidget):
 #     '''
 #     'ImageTextInfoLV'
 
-#     unstructered = nd2_obj.unstructured_metadata()['ImageTextInfoLV']
-    #   unstructured['SLxImageTextInfo']['TextInfoItem_5'].split('\n')
+
 
 #     return metadata
 
@@ -462,6 +484,7 @@ def _postprocess(foreground: np.array, threhsold=0.5) -> np.array:
 
     for i in np.arange(foreground.shape[0]):
         foreground[i,:,:] = clear_border(foreground[i,:,:])
+        
         foreground[i,:,:] = remove_small_objects(foreground[i,:,:], 
                                                  min_size = min_size)
 
