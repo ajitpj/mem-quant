@@ -99,8 +99,6 @@ def select_dir(mQwidget: ui.mQWidget):
                              "channel_names" :[],
                              "ordered_cmpas" : [],
                             }
-        
-        # _retrievemetadata(mQwidget, nd2_list[0])
 
         # Dictionary for storing cell_data structures
         # {key =current_cell_index, value = cell_data}
@@ -143,12 +141,8 @@ def _retrievemetadata(mQWidget: ui.mQWidget, im_path: Path):
 
     mQWidget.exptInfo["ordered_cmaps"] = ordered_cmaps
     # Write a text file with the channel exposure times and intensities
-    # data_dir = mQWidget.exptInfo["data_dir"]
     filename = im_path.stem + '_metadata.txt'
     filepath = im_path.parent / filename
-    # metadata_name = data_dir.as_posix().split(data_dir.root)[-1] + '_metadata.txt'
-    # metadata_path =  data_dir / metadata_name 
-    # print(metadata_path, metadata_name)
 
     with open(filepath, 'w') as txtfile:
         txtfile.write(unstruct_metadata['SLxImageTextInfo']['TextInfoItem_5'])
