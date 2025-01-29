@@ -145,7 +145,7 @@ def _retrievemetadata(mQWidget: ui.mQWidget, im_path: Path, save: True):
     filepath = im_path.parent / filename
 
     if save:
-        with open(filepath, 'w') as txtfile:
+        with open(filepath, 'w', encoding='utf-8') as txtfile:
             txtfile.write(unstruct_metadata['SLxImageTextInfo']['TextInfoItem_5'])
 
     return
@@ -163,7 +163,7 @@ def loadND2(mQWidget: ui.mQWidget):
         notifications.show_error(f"Could not read {im_path} file")
     else:
         # Dump metadata
-        _retrievemetadata(mQWidget, im_path, True)
+        _retrievemetadata(mQWidget, im_path, False)
 
         # Display setup
         # remove previous layers
@@ -428,7 +428,7 @@ def _2Dpredictor(im_arr: np.array, model_path: Path):
 
     for i in np.arange(im_arr.shape[0]):
         foreground[i,:,:] = ilastik_model.predict(DataArray(im_arr[i, :, :], 
-                                                     dims=["y","x"]))[:,:,0]
+                                                     dims=["y","x"]))[:,:,1]
     return foreground
 
 def _3Dpredictor(im_arr: np.array, model_path: Path):
@@ -441,7 +441,7 @@ def _3Dpredictor(im_arr: np.array, model_path: Path):
 
     ilastik_model = from_project_file(model_path)
     foreground = ilastik_model.predict(DataArray(im_arr, 
-                                                 dims=["z","y","x"]))[:,:,:,0]
+                                                 dims=["z","y","x"]))[:,:,:,1]
 
 
     return foreground
