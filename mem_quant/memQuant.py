@@ -48,12 +48,12 @@ class summary_data:
                                                     'Z_plane'    : int,
                                                     'GFP_signal' : float,
                                                     'GFP_bkg'    : float,
-                                                    'Cy5_signal' : float,
-                                                    'Cy5_bkg'    : float,
+                                                    'mCherry_signal' : float,
+                                                    'mCherry_bkg'    : float,
                                                     'GFP_list'   : list,
-                                                    'Cy5_list'   : list,
+                                                    'mCherry_list'   : list,
                                                     'GFP_bkg_list': list,
-                                                    'Cy5_bkg_list': list,
+                                                    'mCherry_bkg_list': list,
                                                     "npix_signal"    : int,
                                                     "npix_background": int
                                                    }
@@ -77,15 +77,15 @@ def select_dir(mQwidget: ui.mQWidget):
 
         # Initialize experiment metadata
         # colormaps for the three channels
-        channel_cmap = {"Brightfield": "gray",
-                        "Cy5"         : "magenta",
+        channel_cmap = {"Brightfield" : "gray",
+                        "mCherry"     : "magenta",
                         "GFP"         : "green"}
 
         # Initialize the dictionary holding available models
-        # currently - trained for GFP and Cy5 separately.
+        # currently - trained for GFP and mCherry separately.
 
-        models_dict = {"GFP" : Path('./mem_quant/Models/membrane_GFP_v1.ilp'),
-                       "Cy5" : Path('./mem_quant/Models/membrane_Cy5_v1.ilp')
+        models_dict = {"GFP"     : Path('./mem_quant/Models/GFP-mCherry-GFP.ilp'),
+                       "mCherry" : Path('./mem_quant/Models/GFP-mCherry-mCherry.ilp')
                       }
 
         # Initialize experiment data
@@ -114,7 +114,7 @@ def select_dir(mQwidget: ui.mQWidget):
             mQwidget.file_selector.addItem(name.name)
         
 
-def _retrievemetadata(mQWidget: ui.mQWidget, im_path: Path):
+def _retrievemetadata(mQWidget: ui.mQWidget, im_path: Path, save: True):
     '''
     '''
     with nd2.ND2File(im_path) as nd2_file:
@@ -144,8 +144,9 @@ def _retrievemetadata(mQWidget: ui.mQWidget, im_path: Path):
     filename = im_path.stem + '_metadata.txt'
     filepath = im_path.parent / filename
 
-    with open(filepath, 'w') as txtfile:
-        txtfile.write(unstruct_metadata['SLxImageTextInfo']['TextInfoItem_5'])
+    if save:
+        with open(filepath, 'w') as txtfile:
+            txtfile.write(unstruct_metadata['SLxImageTextInfo']['TextInfoItem_5'])
 
     return
 
@@ -162,7 +163,7 @@ def loadND2(mQWidget: ui.mQWidget):
         notifications.show_error(f"Could not read {im_path} file")
     else:
         # Dump metadata
-        _retrievemetadata(mQWidget, im_path)
+        _retrievemetadata(mQWidget, im_path, True)
 
         # Display setup
         # remove previous layers
@@ -299,13 +300,13 @@ def thresh_slider_callback(mQWidget: ui.mQWidget):
 def ref_channel_selector_callback(mQWidget):
     '''
     '''
-    if mQWidget.ref_channel_selector.currentText() == "Cy5":
+    if mQWidget.ref_channel_selector.currentText() == "mCherry":
         mQWidget.foreground_thresh.setValue(75)
-        mQWidget.viewer.layers["Cy5"].visible = True
+        mQWidget.viewer.layers["mCherry"].visible = True
         mQWidget.viewer.layers["GFP"].visible = False
     elif mQWidget.ref_channel_selector.currentText() == "GFP":
         mQWidget.foreground_thresh.setValue(50)
-        mQWidget.viewer.layers["Cy5"].visible = False
+        mQWidget.viewer.layers["mCherry"].visible = False
         mQWidget.viewer.layers["GFP"].visible = True
     
 
@@ -315,8 +316,8 @@ def accept_segmentation_button_callback(mQWidget):
     Once stored, the data cannot be manipulated.
     '''
     # Calculate signal intensities before saving all data
-    channel_names = mQWidget.exptInfo["channel_names"]
-    z_plane = int(mQWidget.viewer.cursor.position[0])
+    channel_names  = mQWidget.exptInfo["channel_names"]
+    z_plane        = int(mQWidget.viewer.cursor.position[0])
     processed_mask = mQWidget.current_cell["processed_mask"][z_plane,:,:]
     raw_mask       = mQWidget.current_cell["raw_mask"][z_plane,:,:]
     background_mask= mQWidget.current_cell["background_mask"][z_plane,:,:]

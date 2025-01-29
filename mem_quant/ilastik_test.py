@@ -9,7 +9,7 @@ from skimage.measure import label, regionprops
 from skimage.morphology import remove_small_objects
 
 project_dir = Path('./Models')
-project_file = project_dir / 'membrane_model.ilp'
+project_file = project_dir / 'GFP-mCherry-GFP.ilp'
 ilastik_model = from_project_file(project_file)
 
 
