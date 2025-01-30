@@ -12,7 +12,7 @@ from xarray import DataArray
 from ilastik.experimental.api import from_project_file
 from mem_quant import ui # type: ignore
 # from skimage.measure import label
-from skimage.morphology import  opening, skeletonize, dilation, closing
+from skimage.morphology import  opening, skeletonize, dilation, binary_closing
 from skimage.morphology import remove_small_objects, ball, disk
 from skimage.segmentation import clear_border
 
@@ -163,7 +163,7 @@ def loadND2(mQWidget: ui.mQWidget):
         notifications.show_error(f"Could not read {im_path} file")
     else:
         # Dump metadata
-        _retrievemetadata(mQWidget, im_path, False)
+        _retrievemetadata(mQWidget, im_path, True)
 
         # Display setup
         # remove previous layers
@@ -232,7 +232,7 @@ def select_cell_button_callback(mQWidget: ui.mQWidget):
         # Obtain ROI and predict
         roi = mQWidget.viewer.layers[ref_channel].data[:, xstart:xend, ystart:yend]
         roi_pred = _3Dpredictor(roi, ilastik_model)
-        
+
         #post-process the predictions
         roi_proc = _postprocess(roi_pred)
 
@@ -280,7 +280,7 @@ def thresh_slider_callback(mQWidget: ui.mQWidget):
         threshold = mQWidget.foreground_thresh.value()/100
         raw_mask = mQWidget.current_cell["raw_mask"]
         # mQWidget.viewer.add_labels(data=raw_mask, name="raw mask")
-        processed_mask = _postprocess(raw_mask, threshold)
+        processed_mask  = _postprocess(raw_mask, threshold)
         background_mask = _defineBackground(processed_mask)
 
         if "predicted mask" in mQWidget.viewer.layers:
@@ -446,7 +446,7 @@ def _3Dpredictor(im_arr: np.array, model_path: Path):
 
     return foreground
 
-def _postprocess(foreground: np.array, threhsold=0.5) -> np.array:
+def _postprocess(foreground, threhsold=0.5) -> np.array:
     '''
     Function removes all non-membrane pixels from the foreground 
     and membrane-pixels from the background
@@ -457,19 +457,22 @@ def _postprocess(foreground: np.array, threhsold=0.5) -> np.array:
     post_fore = post-processed foreground
     '''
     # 
-    min_size = 500
+    min_size = 300
     ball_size = 3
     #
-    foreground = foreground > threhsold
-    foreground = closing(foreground, ball(ball_size))
 
+    foreground = foreground > threhsold
+
+    foreground = binary_closing(foreground, ball(ball_size))
+    # footprint = disk(3)
+    thresholded = np.zeros(foreground.shape, dtype=bool)
     for i in np.arange(foreground.shape[0]):
-        foreground[i,:,:] = clear_border(foreground[i,:,:])
-        
-        foreground[i,:,:] = remove_small_objects(foreground[i,:,:], 
+        # thresholded[i,:,:] = binary_closing(foreground[i,:,:], footprint=footprint)
+        thresholded[i,:,:] = clear_border(thresholded[i,:,:])
+        thresholded[i,:,:] = remove_small_objects(thresholded[i,:,:], 
                                                  min_size = min_size)
 
-    return foreground
+    return thresholded
 
 def _defineBackground(processed_mask: np.array) -> np.array:
     '''

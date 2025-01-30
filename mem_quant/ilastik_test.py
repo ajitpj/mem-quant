@@ -9,7 +9,7 @@ from skimage.measure import label, regionprops
 from skimage.morphology import remove_small_objects
 
 project_dir = Path('./Models')
-project_file = project_dir / 'GFP-mCherry-GFP.ilp'
+project_file = project_dir / Path('GFP-mCherry-GFP.ilp')
 ilastik_model = from_project_file(project_file)
 
 
@@ -27,7 +27,20 @@ def readND2(im_path: Path) -> np.array:
     except:
         raise ValueError(f"Could not read {im_path} file")
 
+def _3Dpredictor(im_arr: np.array, model_path: Path):
+    '''
+    Inputs:
+    img_arr: nd2 files have zcyx as dims
+    model_path: Path object for the model file 
+    '''
+    ndims = im_arr.shape
 
+    ilastik_model = from_project_file(model_path)
+    foreground = ilastik_model.predict(DataArray(im_arr, 
+                                                 dims=["z","y","x"]))[:,:,:,1]
+
+
+    return foreground
 
 def predictor(im_arr: np.array, channel: int, ilastik_model):
     '''
