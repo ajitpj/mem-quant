@@ -28,19 +28,22 @@ class exptInfo:
     
     
 @dataclass
-class cell_data:
-    file_name:   str       # filepath
-    ref_channel: str       # ref. channel for pixel classification
-    roi_coords:  Optional[list]=None      # user-selected [xstart, xend, ystart, yend]
-    raw_mask:  Optional[np.array]=None  # ilastik classification confidence 
-    processed_mask: Optional[np.array]=None  # post-processed foreground
-    background_mask: Optional[np.array]=None # background mask based on processed mask
+class defaults:
+    # Default parameter values used in the analysis
+    # file_name:   str       # filepath
+    # ref_channel: str       # ref. channel for pixel classification
+    # roi_coords:  Optional[list]=None      # user-selected [xstart, xend, ystart, yend]
+    # raw_mask:  Optional[np.array]=None  # ilastik classification confidence 
+    # processed_mask: Optional[np.array]=None  # post-processed foreground
+    # background_mask: Optional[np.array]=None # background mask based on processed mask
     threshold: float=0.5    # Default threshold for foregroundpixels
     z_index:   int=10       # User-selected plan
+    min_size:  int=150      # filter regions to this size
+    ball_size: int=1    # Closing footprint to regularize the ROIs
 
 @dataclass
 class summary_data:
-    summary: dict = field(default_factory= lambda: {'Filename'   : str,
+    summary: dict = field(default_factory = lambda: {'Filename'   : str,
                                                     'Model_used' : str,
                                                     'Ref_channel': str,
                                                     'Threshold'  : float,
@@ -100,14 +103,10 @@ def select_dir(mQwidget: ui.mQWidget):
                              "ordered_cmpas" : [],
                             }
 
-        # Dictionary for storing cell_data structures
-        # {key =current_cell_index, value = cell_data}
         mQwidget.current_cell_index = 0
         mQwidget.all_data = {}
         # Summary dataframe
-
         mQwidget.summary_df = pd.DataFrame([summary_data().summary])
-
 
         # populate the file_selector_combobox
         for name in sorted(nd2_list):
@@ -234,7 +233,8 @@ def select_cell_button_callback(mQWidget: ui.mQWidget):
         roi_pred = _3Dpredictor(roi, ilastik_model)
 
         #post-process the predictions
-        roi_proc = _postprocess(roi_pred)
+        roi_proc = _postprocess(roi_pred, min_size=defaults.min_size, 
+                                ball_size=defaults.ball_size)
 
         mask_shape = mQWidget.viewer.layers[ref_channel].data.shape
         roi_coords = [xstart, xend, ystart, yend]
@@ -280,7 +280,10 @@ def thresh_slider_callback(mQWidget: ui.mQWidget):
         threshold = mQWidget.foreground_thresh.value()/100
         raw_mask = mQWidget.current_cell["raw_mask"]
         # mQWidget.viewer.add_labels(data=raw_mask, name="raw mask")
-        processed_mask  = _postprocess(raw_mask, threshold)
+        processed_mask  = _postprocess(raw_mask, threshold, 
+                                       min_size=defaults.min_size,
+                                       ball_size=defaults.ball_size)
+
         background_mask = _defineBackground(processed_mask)
 
         if "predicted mask" in mQWidget.viewer.layers:
@@ -301,7 +304,7 @@ def ref_channel_selector_callback(mQWidget):
     '''
     '''
     if mQWidget.ref_channel_selector.currentText() == "mCherry":
-        mQWidget.foreground_thresh.setValue(75)
+        mQWidget.foreground_thresh.setValue(50)
         mQWidget.viewer.layers["mCherry"].visible = True
         mQWidget.viewer.layers["GFP"].visible = False
     elif mQWidget.ref_channel_selector.currentText() == "GFP":
@@ -446,7 +449,7 @@ def _3Dpredictor(im_arr: np.array, model_path: Path):
 
     return foreground
 
-def _postprocess(foreground, threhsold=0.5) -> np.array:
+def _postprocess(foreground, threhsold=0.5, min_size = int, ball_size = int) -> np.array:
     '''
     Function removes all non-membrane pixels from the foreground 
     and membrane-pixels from the background
@@ -456,23 +459,16 @@ def _postprocess(foreground, threhsold=0.5) -> np.array:
     Outputs:
     post_fore = post-processed foreground
     '''
-    # 
-    min_size = 300
-    ball_size = 3
-    #
 
     foreground = foreground > threhsold
+    foreground = binary_closing(foreground, ball(radius=ball_size))
 
-    foreground = binary_closing(foreground, ball(ball_size))
-    # footprint = disk(3)
-    thresholded = np.zeros(foreground.shape, dtype=bool)
     for i in np.arange(foreground.shape[0]):
-        # thresholded[i,:,:] = binary_closing(foreground[i,:,:], footprint=footprint)
-        thresholded[i,:,:] = clear_border(thresholded[i,:,:])
-        thresholded[i,:,:] = remove_small_objects(thresholded[i,:,:], 
+        foreground[i,:,:] = clear_border(foreground[i,:,:])
+        foreground[i,:,:] = remove_small_objects(foreground[i,:,:], 
                                                  min_size = min_size)
 
-    return thresholded
+    return foreground
 
 def _defineBackground(processed_mask: np.array) -> np.array:
     '''
